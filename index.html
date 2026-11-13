@@ -1,193 +1,1002 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CRM Clientes - Sincronizado</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Clientes - CRM</title>
+    <!-- Carregamento do Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carregamento da Fonte Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Ícones Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
 
-  <header class="bg-slate-900 text-white shadow-md">
-    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight">Controle de Clientes & Leads</h1>
-        <p class="text-xs text-slate-400">Green • Telecom • Solar • Placas • Seguros • Mob</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <span id="statusSync" class="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-          Modo Local (Offline)
-        </span>
-        <button onclick="exportarCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition">
-          Exportar CSV
-        </button>
-      </div>
+    <!-- Notificação Toast Flutuante -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Cabeçalho Principal -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-600 text-white p-2.5 rounded-xl shadow-sm">
+                    <i data-lucide="users" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">CRM Clientes</h1>
+                    <p class="text-xs text-slate-500">Cadastro e Acompanhamento de Leads</p>
+                </div>
+            </div>
+
+            <!-- Botões de Backup / Exportação -->
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="exportToCSV()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm" title="Exportar planilha compatível com Excel">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                    Exportar CSV
+                </button>
+                <button onclick="exportToJSON()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm" title="Salvar backup completo">
+                    <i data-lucide="download" class="w-4 h-4 text-blue-600"></i>
+                    Backup JSON
+                </button>
+                <label class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition shadow-sm cursor-pointer" title="Restaurar backup JSON">
+                    <i data-lucide="upload" class="w-4 h-4 text-amber-600"></i>
+                    Importar
+                    <input type="file" id="import-file" accept=".json" class="hidden" onchange="importFromJSON(event)">
+                </label>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- Painel de Resumo (KPI Cards) -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Total -->
+            <div onclick="setQuickFilter('status', 'all')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-slate-300 transition cursor-pointer flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total de Clientes</p>
+                    <p id="stat-total" class="text-3xl font-bold text-slate-900 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-slate-100 text-slate-600 rounded-xl">
+                    <i data-lucide="database" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Cadastrados (Sim) -->
+            <div onclick="setQuickFilter('status', 'Sim')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-300 transition cursor-pointer flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Cadastrados (Sim)</p>
+                    <p id="stat-yes" class="text-3xl font-bold text-emerald-700 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                    <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Não Cadastrados (Não) -->
+            <div onclick="setQuickFilter('status', 'Não')" class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-rose-300 transition cursor-pointer flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-rose-600 uppercase tracking-wider">Não Cadastrados</p>
+                    <p id="stat-no" class="text-3xl font-bold text-rose-700 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                    <i data-lucide="x-circle" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Continuar Contactando -->
+            <div onclick="setQuickFilter('status', 'followup')" class="bg-amber-50/70 p-5 rounded-2xl border border-amber-200 shadow-sm hover:border-amber-400 transition cursor-pointer flex items-center justify-between relative overflow-hidden">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <p class="text-xs font-bold text-amber-800 uppercase tracking-wider">Continuar Contactando</p>
+                    </div>
+                    <p id="stat-followup" class="text-3xl font-bold text-amber-900 mt-1">0</p>
+                </div>
+                <div class="p-3 bg-amber-100 text-amber-700 rounded-xl">
+                    <i data-lucide="phone-forwarded" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Grid Principal: Formulário à Esquerda, Lista à Direita -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- Formulário de Cadastro / Edição (4 colunas no desktop) -->
+            <section class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="user-plus" class="w-5 h-5 text-emerald-400" id="form-icon"></i>
+                        <h2 id="form-title" class="font-semibold text-base">Novo Cadastro</h2>
+                    </div>
+                    <button type="button" id="btn-cancel-edit" onclick="resetForm()" class="hidden text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg transition">
+                        Cancelar Edição
+                    </button>
+                </div>
+
+                <form id="client-form" class="p-6 space-y-4" onsubmit="handleFormSubmit(event)">
+                    <input type="hidden" id="client-id">
+
+                    <!-- Nome -->
+                    <div>
+                        <label for="client-name" class="block text-sm font-medium text-slate-700 mb-1">Nome Completo <span class="text-rose-500">*</span></label>
+                        <input type="text" id="client-name" required placeholder="Ex: João da Silva"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                    </div>
+
+                    <!-- Telefone -->
+                    <div>
+                        <label for="client-phone" class="block text-sm font-medium text-slate-700 mb-1">Telefone / WhatsApp <span class="text-rose-500">*</span></label>
+                        <input type="tel" id="client-phone" required placeholder="(00) 00000-0000" maxlength="15" oninput="maskPhone(this)"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                    </div>
+
+                    <!-- E-mail -->
+                    <div>
+                        <label for="client-email" class="block text-sm font-medium text-slate-700 mb-1">E-mail <span class="text-slate-400 font-normal">(opcional)</span></label>
+                        <input type="email" id="client-email" placeholder="cliente@email.com"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+                    </div>
+
+                    <!-- Tipo de Cadastro -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Tipo de Cadastro <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-3 gap-2" id="type-selector">
+                            <button type="button" data-type="Green" onclick="selectType('Green')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Green</button>
+                            <button type="button" data-type="Telecom" onclick="selectType('Telecom')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Telecom</button>
+                            <button type="button" data-type="Solar" onclick="selectType('Solar')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Solar</button>
+                            <button type="button" data-type="Placas" onclick="selectType('Placas')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Placas</button>
+                            <button type="button" data-type="Seguros" onclick="selectType('Seguros')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Seguros</button>
+                            <button type="button" data-type="Mob" onclick="selectType('Mob')" class="type-btn py-2 px-2 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition text-center">Mob</button>
+                        </div>
+                        <input type="hidden" id="client-type" value="Green" required>
+                    </div>
+
+                    <!-- Situação (Cadastrado: Sim / Não) -->
+                    <div class="pt-2 border-t border-slate-100">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Situação: Cadastrado? <span class="text-rose-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button type="button" id="btn-status-sim" onclick="setStatus('Sim')"
+                                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 font-semibold text-sm transition">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                Sim
+                            </button>
+                            <button type="button" id="btn-status-nao" onclick="setStatus('Não')"
+                                class="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 font-semibold text-sm transition">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i>
+                                Não
+                            </button>
+                        </div>
+                        <input type="hidden" id="client-status" value="Sim">
+                    </div>
+
+                    <!-- Seção Condicional: Quando SIM -->
+                    <div id="section-yes" class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 space-y-3 transition-all">
+                        <div class="flex items-center gap-2 text-emerald-800 text-xs font-semibold">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+                            Detalhes da Conclusão
+                        </div>
+                        <div>
+                            <label for="yes-notes" class="block text-xs font-medium text-emerald-900 mb-1">Observação / Nº do Contrato (opcional)</label>
+                            <input type="text" id="yes-notes" placeholder="Ex: Cadastro aprovado, plano ativo..."
+                                class="w-full px-3 py-2 bg-white border border-emerald-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                    </div>
+
+                    <!-- Seção Condicional: Quando NÃO (Continuar Contactando) -->
+                    <div id="section-no" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3 transition-all">
+                        <div class="flex items-start gap-2.5">
+                            <input type="checkbox" id="continue-contact" checked
+                                class="mt-0.5 w-4 h-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500 cursor-pointer">
+                            <label for="continue-contact" class="text-xs font-bold text-amber-900 cursor-pointer select-none">
+                                Continuar contactando este cliente
+                                <span class="block font-normal text-amber-700 mt-0.5">Mantém o cliente na lista de acompanhamento ativo.</span>
+                            </label>
+                        </div>
+
+                        <div id="followup-details" class="space-y-3 pt-2 border-t border-amber-200/70">
+                            <div>
+                                <label for="next-contact-date" class="block text-xs font-medium text-amber-900 mb-1">Data/Hora do Próximo Contato</label>
+                                <input type="datetime-local" id="next-contact-date"
+                                    class="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+
+                            <div>
+                                <label for="contact-channel" class="block text-xs font-medium text-amber-900 mb-1">Canal Preferencial</label>
+                                <select id="contact-channel"
+                                    class="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                    <option value="WhatsApp">WhatsApp</option>
+                                    <option value="Ligação Telefônica">Ligação Telefônica</option>
+                                    <option value="E-mail">E-mail</option>
+                                    <option value="Visita Presencial">Visita Presencial</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="no-notes" class="block text-xs font-medium text-amber-900 mb-1">Motivo / Observação de Retorno</label>
+                                <textarea id="no-notes" rows="2" placeholder="Ex: Pediu para retornar após as 18h; aguardando envio de fatura..."
+                                    class="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botão Salvar -->
+                    <button type="submit" id="btn-submit"
+                        class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-sm hover:shadow transition flex items-center justify-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span id="btn-submit-text">Salvar Cadastro</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Lista e Filtros de Clientes (8 colunas no desktop) -->
+            <section class="lg:col-span-8 space-y-4">
+
+                <!-- Barra de Busca e Filtros -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <!-- Busca -->
+                        <div class="relative flex-1">
+                            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="search-input" oninput="renderClients()" placeholder="Buscar por nome, telefone ou e-mail..."
+                                class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition">
+                        </div>
+
+                        <!-- Filtro de Situação -->
+                        <select id="filter-status" onchange="renderClients()"
+                            class="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="all">Todas as Situações</option>
+                            <option value="followup">🔔 Continuar Contactando</option>
+                            <option value="Sim">✅ Cadastrados (Sim)</option>
+                            <option value="Não">❌ Não Cadastrados (Não)</option>
+                        </select>
+                    </div>
+
+                    <!-- Pílulas de Filtro por Tipo de Cadastro -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1" id="type-filters">
+                        <button onclick="setTypeFilter('all')" data-filter-type="all" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white transition whitespace-nowrap">Todos</button>
+                        <button onclick="setTypeFilter('Green')" data-filter-type="Green" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Green</button>
+                        <button onclick="setTypeFilter('Telecom')" data-filter-type="Telecom" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Telecom</button>
+                        <button onclick="setTypeFilter('Solar')" data-filter-type="Solar" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Solar</button>
+                        <button onclick="setTypeFilter('Placas')" data-filter-type="Placas" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Placas</button>
+                        <button onclick="setTypeFilter('Seguros')" data-filter-type="Seguros" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Seguros</button>
+                        <button onclick="setTypeFilter('Mob')" data-filter-type="Mob" class="filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap">Mob</button>
+                    </div>
+                </div>
+
+                <!-- Contador de Resultados -->
+                <div class="flex items-center justify-between px-1">
+                    <p id="results-count" class="text-xs font-medium text-slate-500">Exibindo 0 clientes</p>
+                    <button onclick="clearFilters()" id="btn-clear-filters" class="hidden text-xs font-semibold text-emerald-600 hover:text-emerald-700">
+                        Limpar filtros
+                    </button>
+                </div>
+
+                <!-- Lista de Cards de Clientes -->
+                <div id="clients-list" class="space-y-3">
+                    <!-- Renderizado via JavaScript -->
+                </div>
+
+                <!-- Estado Vazio -->
+                <div id="empty-state" class="hidden bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                    <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="folder-open" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-sm font-semibold text-slate-900">Nenhum cliente encontrado</h3>
+                    <p class="text-xs text-slate-500 mt-1 max-w-xs mx-auto">Cadastre um novo cliente no formulário ao lado ou ajuste os filtros de busca.</p>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal de Reagendamento / Novo Contato -->
+    <div id="followup-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full shadow-xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
+                <div class="flex items-center gap-2 text-amber-900 font-semibold text-sm">
+                    <i data-lucide="calendar-clock" class="w-5 h-5 text-amber-600"></i>
+                    Registrar Contato / Reagendar
+                </div>
+                <button onclick="closeFollowupModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form onsubmit="saveFollowupUpdate(event)" class="p-6 space-y-4">
+                <input type="hidden" id="modal-client-id">
+                <div>
+                    <p class="text-xs text-slate-500">Cliente</p>
+                    <p id="modal-client-name" class="font-bold text-slate-900 text-base"></p>
+                </div>
+
+                <div class="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <input type="checkbox" id="modal-continue-contact" checked class="w-4 h-4 text-amber-600 rounded">
+                    <label for="modal-continue-contact" class="text-xs font-semibold text-slate-700">Manter ativo em "Continuar Contactando"</label>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Próxima Data/Hora de Contato</label>
+                    <input type="datetime-local" id="modal-next-date" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Canal</label>
+                    <select id="modal-channel" class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm">
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Ligação Telefônica">Ligação Telefônica</option>
+                        <option value="E-mail">E-mail</option>
+                        <option value="Visita Presencial">Visita Presencial</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">Histórico / Nova Observação</label>
+                    <textarea id="modal-notes" rows="3" required placeholder="Descreva o que foi conversado ou o próximo passo..." class="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="button" onclick="closeFollowupModal()" class="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-xl transition">
+                        Salvar Acompanhamento
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-  </header>
 
-  <main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    <!-- Formulário de Cadastro -->
-    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit">
-      <h2 class="text-lg font-semibold mb-4 text-slate-800 border-b pb-2" id="formTitulo">Novo Cadastro</h2>
-      <form id="clienteForm" class="space-y-4">
-        <input type="hidden" id="clienteId" />
-
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
-          <input type="text" id="nome" required placeholder="Nome completo"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="delete-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-200 text-center space-y-4">
+            <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto">
+                <i data-lucide="trash-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Excluir Cliente?</h3>
+                <p id="delete-modal-text" class="text-xs text-slate-500 mt-1">Essa ação não poderá ser desfeita.</p>
+            </div>
+            <input type="hidden" id="delete-client-id">
+            <div class="flex gap-2">
+                <button onclick="closeDeleteModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition">Cancelar</button>
+                <button onclick="confirmDelete()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-xl transition">Sim, Excluir</button>
+            </div>
         </div>
+    </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Telefone *</label>
-          <input type="tel" id="telefone" required placeholder="(61) 99999-9999" maxlength="15"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
+    <script>
+        // --- ESTADO GLOBAL E CONFIGURAÇÕES ---
+        const STORAGE_KEY = 'crm_clientes_v1';
+        let clients = [];
+        let currentTypeFilter = 'all';
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
-          <input type="email" id="email" placeholder="cliente@email.com"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
+        // Cores e estilos para cada Tipo de Cadastro
+        const TYPE_STYLES = {
+            'Green':   { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', btnActive: 'bg-emerald-600 text-white border-emerald-600 shadow-xs' },
+            'Telecom': { badge: 'bg-blue-100 text-blue-800 border-blue-200',          btnActive: 'bg-blue-600 text-white border-blue-600 shadow-xs' },
+            'Solar':   { badge: 'bg-amber-100 text-amber-800 border-amber-200',       btnActive: 'bg-amber-500 text-white border-amber-500 shadow-xs' },
+            'Placas':  { badge: 'bg-cyan-100 text-cyan-800 border-cyan-200',          btnActive: 'bg-cyan-600 text-white border-cyan-600 shadow-xs' },
+            'Seguros': { badge: 'bg-indigo-100 text-indigo-800 border-indigo-200',    btnActive: 'bg-indigo-600 text-white border-indigo-600 shadow-xs' },
+            'Mob':     { badge: 'bg-purple-100 text-purple-800 border-purple-200',    btnActive: 'bg-purple-600 text-white border-purple-600 shadow-xs' }
+        };
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de Cadastro *</label>
-          <select id="tipo" required
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="Green">Green</option>
-            <option value="Telecom">Telecom</option>
-            <option value="Solar">Solar</option>
-            <option value="Placas">Placas</option>
-            <option value="Seguros">Seguros</option>
-            <option value="Mob">Mob</option>
-          </select>
-        </div>
+        // --- INICIALIZAÇÃO ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadClients();
+            selectType('Green');
+            setStatus('Sim');
+            lucide.createIcons();
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Situação: Cadastrado?</label>
-          <div class="grid grid-cols-2 gap-2">
-            <label class="cursor-pointer">
-              <input type="radio" name="cadastrado" value="Sim" class="peer sr-only" checked onchange="toggleContato()" />
-              <div class="text-center py-2 px-3 rounded-lg border border-slate-300 text-sm font-medium peer-checked:bg-emerald-600 peer-checked:text-white peer-checked:border-emerald-600 transition">
-                Sim
-              </div>
-            </label>
-            <label class="cursor-pointer">
-              <input type="radio" name="cadastrado" value="Não" class="peer sr-only" onchange="toggleContato()" />
-              <div class="text-center py-2 px-3 rounded-lg border border-slate-300 text-sm font-medium peer-checked:bg-amber-600 peer-checked:text-white peer-checked:border-amber-600 transition">
-                Não
-              </div>
-            </label>
-          </div>
-        </div>
+            // Listener para checkbox "Continuar contactando"
+            document.getElementById('continue-contact').addEventListener('change', (e) => {
+                const details = document.getElementById('followup-details');
+                if (e.target.checked) {
+                    details.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    details.classList.add('opacity-50', 'pointer-events-none');
+                }
+            });
+        });
 
-        <!-- Seção Condicional: Continuar Contactando -->
-        <div id="boxContinuarContato" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
-          <div class="flex items-center gap-2">
-            <input type="checkbox" id="continuarContactando" checked class="w-4 h-4 text-amber-600 rounded" />
-            <label for="continuarContactando" class="text-sm font-semibold text-amber-900">
-              Continuar contactando este cliente
-            </label>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-amber-800 mb-1">Próximo Contato / Retorno</label>
-            <input type="datetime-local" id="dataRetorno"
-              class="w-full rounded border border-amber-300 px-2.5 py-1.5 text-xs bg-white" />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-amber-800 mb-1">Observações do Atendimento</label>
-            <textarea id="observacao" rows="2" placeholder="Ex: Retornar sexta-feira após as 14h..."
-              class="w-full rounded border border-amber-300 px-2.5 py-1.5 text-xs bg-white"></textarea>
-          </div>
-        </div>
+        // Carregar dados do localStorage (ou criar exemplos iniciais se vazio)
+        function loadClients() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    clients = JSON.parse(stored);
+                } else {
+                    // Dados iniciais de exemplo para facilitar visualização
+                    clients = [
+                        {
+                            id: '1',
+                            name: 'Mariana Costa',
+                            phone: '(11) 98765-4321',
+                            email: 'mariana.costa@email.com',
+                            type: 'Solar',
+                            status: 'Não',
+                            continueContact: true,
+                            nextContactDate: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+                            contactChannel: 'WhatsApp',
+                            notes: 'Enviada simulação de economia na conta de luz. Retornar amanhã.',
+                            createdAt: new Date().toISOString()
+                        },
+                        {
+                            id: '2',
+                            name: 'Carlos Eduardo Mendes',
+                            phone: '(21) 99123-4567',
+                            email: 'carlos.mendes@empresa.com.br',
+                            type: 'Green',
+                            status: 'Sim',
+                            continueContact: false,
+                            nextContactDate: '',
+                            contactChannel: '',
+                            notes: 'Cadastro finalizado e contrato assinado.',
+                            createdAt: new Date(Date.now() - 3600000).toISOString()
+                        },
+                        {
+                            id: '3',
+                            name: 'Fernanda Oliveira',
+                            phone: '(31) 98456-7890',
+                            email: '',
+                            type: 'Telecom',
+                            status: 'Não',
+                            continueContact: true,
+                            nextContactDate: '',
+                            contactChannel: 'Ligação Telefônica',
+                            notes: 'Linha ocupada na primeira tentativa. Tentar novamente no período da tarde.',
+                            createdAt: new Date(Date.now() - 7200000).toISOString()
+                        }
+                    ];
+                    saveClientsToStorage();
+                }
+            } catch (err) {
+                console.error('Erro ao carregar dados:', err);
+                clients = [];
+            }
+            updateDashboard();
+            renderClients();
+        }
 
-        <div class="flex gap-2 pt-2">
-          <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition">
-            Salvar Registro
-          </button>
-          <button type="button" id="btnCancelar" onclick="resetForm()" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2 px-3 rounded-lg text-sm transition">
-            Cancelar
-          </button>
-        </div>
-      </form>
-    </section>
+        function saveClientsToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
+            updateDashboard();
+        }
 
-    <!-- Listagem e Filtros -->
-    <section class="lg:col-span-2 space-y-4">
-      
-      <!-- Resumo -->
-      <div class="grid grid-cols-3 gap-3">
-        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <p class="text-xs text-slate-500">Total</p>
-          <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
-        </div>
-        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <p class="text-xs text-emerald-600 font-medium">Cadastrados (Sim)</p>
-          <p id="statSim" class="text-2xl font-bold text-emerald-600">0</p>
-        </div>
-        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-          <p class="text-xs text-amber-600 font-medium">Em Contato (Não)</p>
-          <p id="statNao" class="text-2xl font-bold text-amber-600">0</p>
-        </div>
-      </div>
+        // --- MÁSCARA DE TELEFONE ---
+        function maskPhone(input) {
+            let v = input.value.replace(/\D/g, '');
+            if (v.length > 11) v = v.slice(0, 11);
+            if (v.length > 10) {
+                v = v.replace(/^(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            } else if (v.length > 6) {
+                v = v.replace(/^(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+            } else if (v.length > 2) {
+                v = v.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+            } else if (v.length > 0) {
+                v = v.replace(/^(\d*)/, '($1');
+            }
+            input.value = v;
+        }
 
-      <!-- Barra de Pesquisa e Filtros -->
-      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3">
-        <input type="text" id="busca" oninput="renderizar()" placeholder="Buscar por nome, telefone ou e-mail..."
-          class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <select id="filtroTipo" onchange="renderizar()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-          <option value="TODOS">Todos os Tipos</option>
-          <option value="Green">Green</option>
-          <option value="Telecom">Telecom</option>
-          <option value="Solar">Solar</option>
-          <option value="Placas">Placas</option>
-          <option value="Seguros">Seguros</option>
-          <option value="Mob">Mob</option>
-        </select>
-        <select id="filtroSituacao" onchange="renderizar()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-          <option value="TODOS">Todas Situações</option>
-          <option value="Sim">Cadastrado: Sim</option>
-          <option value="Não">Cadastrado: Não</option>
-          <option value="CONTACTAR">Continuar Contactando</option>
-        </select>
-      </div>
+        // --- CONTROLES DO FORMULÁRIO ---
+        function selectType(type) {
+            document.getElementById('client-type').value = type;
+            document.querySelectorAll('.type-btn').forEach(btn => {
+                const btnType = btn.getAttribute('data-type');
+                btn.className = 'type-btn py-2 px-2 text-xs font-semibold rounded-xl border transition text-center ';
+                if (btnType === type) {
+                    btn.className += TYPE_STYLES[type].btnActive;
+                } else {
+                    btn.className += 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100';
+                }
+            });
+        }
 
-      <!-- Lista de Cards -->
-      <div id="listaClientes" class="space-y-3"></div>
-    </section>
+        function setStatus(status) {
+            document.getElementById('client-status').value = status;
+            const btnSim = document.getElementById('btn-status-sim');
+            const btnNao = document.getElementById('btn-status-nao');
+            const secYes = document.getElementById('section-yes');
+            const secNo = document.getElementById('section-no');
 
-  </main>
+            if (status === 'Sim') {
+                btnSim.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-emerald-600 bg-emerald-600 text-white font-semibold text-sm transition shadow-xs';
+                btnNao.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-semibold text-sm transition';
+                secYes.classList.remove('hidden');
+                secNo.classList.add('hidden');
+            } else {
+                btnNao.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-rose-600 bg-rose-600 text-white font-semibold text-sm transition shadow-xs';
+                btnSim.className = 'flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border-2 border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-semibold text-sm transition';
+                secYes.classList.add('hidden');
+                secNo.classList.remove('hidden');
+            }
+        }
 
-  <!-- Firebase SDK para Sincronização em Tempo Real -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        function handleFormSubmit(e) {
+            e.preventDefault();
 
-    // =========================================================================
-    // CONFIGURAÇÃO DE SINCRONIZAÇÃO EM NUVEM (FIREBASE FIRESTORE)
-    // Cole suas credenciais do Firebase abaixo para sincronizar entre dispositivos
-    // =========================================================================
-    const firebaseConfig = {
-      apiKey: "COLE_SUA_API_KEY_AQUI",
-      authDomain: "SEU_PROJETO.firebaseapp.com",
-      projectId: "SEU_PROJECT_ID",
-      storageBucket: "SEU_PROJETO.appspot.com",
-      messagingSenderId: "SEU_SENDER_ID",
-      appId: "SEU_APP_ID"
-    };
+            const id = document.getElementById('client-id').value;
+            const name = document.getElementById('client-name').value.trim();
+            const phone = document.getElementById('client-phone').value.trim();
+            const email = document.getElementById('client-email').value.trim();
+            const type = document.getElementById('client-type').value;
+            const status = document.getElementById('client-status').value;
 
-    const usandoNuvem = firebaseConfig.apiKey !== "COLE_SUA_API_KEY_AQUI";
-    let db = null;
-    let clientes = [];
+            let continueContact = false;
+            let nextContactDate = '';
+            let contactChannel = '';
+            let notes = '';
 
-    const statusEl = document.getElementById("statusSync");
+            if (status === 'Sim') {
+                notes = document.getElementById('yes-notes').value.trim();
+            } else {
+                continueContact = document.getElementById('continue-contact').checked;
+                nextContactDate = document.getElementById('next-contact-date').value;
+                contactChannel = document.getElementById('contact-channel').value;
+                notes = document.getElementById('no-notes').value.trim();
+            }
 
-    if (usandoNuvem) {
-      const app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
-      statusEl.textContent = "Sincronizado em Tempo Real";
-      statusEl.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald
+            if (id) {
+                // Atualizar existente
+                const index = clients.findIndex(c => c.id === id);
+                if (index !== -1) {
+                    clients[index] = {
+                        ...clients[index],
+                        name, phone, email, type, status,
+                        continueContact, nextContactDate, contactChannel, notes,
+                        updatedAt: new Date().toISOString()
+                    };
+                    showToast('Cadastro atualizado com sucesso!', 'success');
+                }
+            } else {
+                // Criar novo
+                const newClient = {
+                    id: Date.now().toString(),
+                    name, phone, email, type, status,
+                    continueContact, nextContactDate, contactChannel, notes,
+                    createdAt: new Date().toISOString()
+                };
+                clients.unshift(newClient);
+                showToast('Cliente cadastrado com sucesso!', 'success');
+            }
+
+            saveClientsToStorage();
+            resetForm();
+            renderClients();
+        }
+
+        function resetForm() {
+            document.getElementById('client-form').reset();
+            document.getElementById('client-id').value = '';
+            document.getElementById('form-title').textContent = 'Novo Cadastro';
+            document.getElementById('btn-submit-text').textContent = 'Salvar Cadastro';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+            document.getElementById('continue-contact').checked = true;
+            document.getElementById('followup-details').classList.remove('opacity-50', 'pointer-events-none');
+            selectType('Green');
+            setStatus('Sim');
+        }
+
+        function editClient(id) {
+            const client = clients.find(c => c.id === id);
+            if (!client) return;
+
+            document.getElementById('client-id').value = client.id;
+            document.getElementById('client-name').value = client.name;
+            document.getElementById('client-phone').value = client.phone;
+            document.getElementById('client-email').value = client.email || '';
+
+            selectType(client.type);
+            setStatus(client.status);
+
+            if (client.status === 'Sim') {
+                document.getElementById('yes-notes').value = client.notes || '';
+            } else {
+                document.getElementById('continue-contact').checked = client.continueContact !== false;
+                document.getElementById('next-contact-date').value = client.nextContactDate || '';
+                document.getElementById('contact-channel').value = client.contactChannel || 'WhatsApp';
+                document.getElementById('no-notes').value = client.notes || '';
+
+                const details = document.getElementById('followup-details');
+                if (client.continueContact !== false) {
+                    details.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    details.classList.add('opacity-50', 'pointer-events-none');
+                }
+            }
+
+            document.getElementById('form-title').textContent = 'Editar Cliente';
+            document.getElementById('btn-submit-text').textContent = 'Atualizar Cadastro';
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+
+            // Rolar suavemente até o formulário em telas menores
+            document.getElementById('client-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // --- AÇÕES RÁPIDAS NA LISTA ---
+        function markAsRegistered(id) {
+            const index = clients.findIndex(c => c.id === id);
+            if (index !== -1) {
+                clients[index].status = 'Sim';
+                clients[index].continueContact = false;
+                clients[index].updatedAt = new Date().toISOString();
+                saveClientsToStorage();
+                renderClients();
+                showToast(`${clients[index].name} marcado como Cadastrado (Sim)!`, 'success');
+            }
+        }
+
+        function openFollowupModal(id) {
+            const client = clients.find(c => c.id === id);
+            if (!client) return;
+
+            document.getElementById('modal-client-id').value = client.id;
+            document.getElementById('modal-client-name').textContent = `${client.name} (${client.type})`;
+            document.getElementById('modal-continue-contact').checked = client.continueContact !== false;
+            document.getElementById('modal-next-date').value = client.nextContactDate || '';
+            document.getElementById('modal-channel').value = client.contactChannel || 'WhatsApp';
+            document.getElementById('modal-notes').value = client.notes || '';
+
+            document.getElementById('followup-modal').classList.remove('hidden');
+        }
+
+        function closeFollowupModal() {
+            document.getElementById('followup-modal').classList.add('hidden');
+        }
+
+        function saveFollowupUpdate(e) {
+            e.preventDefault();
+            const id = document.getElementById('modal-client-id').value;
+            const index = clients.findIndex(c => c.id === id);
+            if (index !== -1) {
+                clients[index].continueContact = document.getElementById('modal-continue-contact').checked;
+                clients[index].nextContactDate = document.getElementById('modal-next-date').value;
+                clients[index].contactChannel = document.getElementById('modal-channel').value;
+                clients[index].notes = document.getElementById('modal-notes').value.trim();
+                clients[index].updatedAt = new Date().toISOString();
+
+                saveClientsToStorage();
+                renderClients();
+                closeFollowupModal();
+                showToast('Acompanhamento atualizado!', 'info');
+            }
+        }
+
+        function openDeleteModal(id) {
+            const client = clients.find(c => c.id === id);
+            if (!client) return;
+            document.getElementById('delete-client-id').value = id;
+            document.getElementById('delete-modal-text').textContent = `Deseja remover "${client.name}" permanentemente?`;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.add('hidden');
+        }
+
+        function confirmDelete() {
+            const id = document.getElementById('delete-client-id').value;
+            clients = clients.filter(c => c.id !== id);
+            saveClientsToStorage();
+            renderClients();
+            closeDeleteModal();
+            showToast('Cliente excluído.', 'info');
+        }
+
+        // --- FILTROS E DASHBOARD ---
+        function updateDashboard() {
+            const total = clients.length;
+            const yesCount = clients.filter(c => c.status === 'Sim').length;
+            const noCount = clients.filter(c => c.status === 'Não').length;
+            const followupCount = clients.filter(c => c.status === 'Não' && c.continueContact).length;
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-yes').textContent = yesCount;
+            document.getElementById('stat-no').textContent = noCount;
+            document.getElementById('stat-followup').textContent = followupCount;
+        }
+
+        function setTypeFilter(type) {
+            currentTypeFilter = type;
+            document.querySelectorAll('.filter-pill').forEach(pill => {
+                const pillType = pill.getAttribute('data-filter-type');
+                if (pillType === type) {
+                    pill.className = 'filter-pill px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-white transition whitespace-nowrap';
+                } else {
+                    pill.className = 'filter-pill px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition whitespace-nowrap';
+                }
+            });
+            renderClients();
+        }
+
+        function setQuickFilter(filterKind, value) {
+            if (filterKind === 'status') {
+                document.getElementById('filter-status').value = value;
+            }
+            renderClients();
+        }
+
+        function clearFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('filter-status').value = 'all';
+            setTypeFilter('all');
+        }
+
+        // --- RENDERIZAÇÃO DA LISTA ---
+        function renderClients() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase().trim();
+            const statusFilter = document.getElementById('filter-status').value;
+
+            const filtered = clients.filter(client => {
+                // Busca textual
+                const matchesSearch = !searchTerm ||
+                    client.name.toLowerCase().includes(searchTerm) ||
+                    client.phone.includes(searchTerm) ||
+                    (client.email && client.email.toLowerCase().includes(searchTerm));
+
+                // Filtro de Tipo
+                const matchesType = currentTypeFilter === 'all' || client.type === currentTypeFilter;
+
+                // Filtro de Situação
+                let matchesStatus = true;
+                if (statusFilter === 'Sim') matchesStatus = client.status === 'Sim';
+                else if (statusFilter === 'Não') matchesStatus = client.status === 'Não';
+                else if (statusFilter === 'followup') matchesStatus = (client.status === 'Não' && client.continueContact);
+
+                return matchesSearch && matchesType && matchesStatus;
+            });
+
+            // Atualizar contador e botão limpar
+            document.getElementById('results-count').textContent = `Exibindo ${filtered.length} de ${clients.length} cliente(s)`;
+            const hasActiveFilter = searchTerm || statusFilter !== 'all' || currentTypeFilter !== 'all';
+            document.getElementById('btn-clear-filters').classList.toggle('hidden', !hasActiveFilter);
+
+            const listEl = document.getElementById('clients-list');
+            const emptyEl = document.getElementById('empty-state');
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '';
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            listEl.innerHTML = filtered.map(client => {
+                const typeBadgeClass = TYPE_STYLES[client.type]?.badge || 'bg-slate-100 text-slate-800';
+                const cleanPhone = client.phone.replace(/\D/g, '');
+                const waUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá ${client.name}, tudo bem? Estou entrando em contato referente ao seu cadastro (${client.type}).`)}`;
+
+                // Formatação de data agendada
+                let formattedNextDate = '';
+                if (client.nextContactDate) {
+                    const d = new Date(client.nextContactDate);
+                    formattedNextDate = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+
+                return `
+                <article class="bg-white rounded-2xl border ${client.status === 'Não' && client.continueContact ? 'border-amber-300 shadow-sm' : 'border-slate-200'} p-5 transition hover:shadow-md">
+                    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <!-- Informações Principais -->
+                        <div class="space-y-2 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="font-bold text-slate-900 text-base">${escapeHtml(client.name)}</h3>
+                                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-md border ${typeBadgeClass}">
+                                    ${escapeHtml(client.type)}
+                                </span>
+                                ${client.status === 'Sim'
+                                    ? `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Cadastrado: Sim
+                                       </span>`
+                                    : `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-100 text-rose-800">
+                                        <i data-lucide="x-circle" class="w-3.5 h-3.5"></i> Cadastrado: Não
+                                       </span>`
+                                }
+                            </div>
+
+                            <!-- Contatos -->
+                            <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600">
+                                <a href="${waUrl}" target="_blank" rel="noopener noreferrer"
+                                   class="inline-flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition"
+                                   title="Abrir conversa no WhatsApp">
+                                    <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                                    ${escapeHtml(client.phone)}
+                                </a>
+                                ${client.email ? `
+                                <a href="mailto:${escapeHtml(client.email)}" class="inline-flex items-center gap-1.5 hover:text-slate-900">
+                                    <i data-lucide="mail" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    ${escapeHtml(client.email)}
+                                </a>` : ''}
+                            </div>
+
+                            <!-- Bloco de Acompanhamento (Se Não) ou Observação (Se Sim) -->
+                            ${client.status === 'Não' ? `
+                                <div class="mt-3 p-3 rounded-xl ${client.continueContact ? 'bg-amber-50 border border-amber-200/80' : 'bg-slate-50 border border-slate-200'} text-xs space-y-1.5">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        ${client.continueContact
+                                            ? `<span class="inline-flex items-center gap-1.5 font-bold text-amber-800">
+                                                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                                                Continuar Contactando ${client.contactChannel ? `(${escapeHtml(client.contactChannel)})` : ''}
+                                               </span>`
+                                            : `<span class="text-slate-500 font-medium">Não continuar contactando</span>`
+                                        }
+                                        ${formattedNextDate ? `
+                                            <span class="inline-flex items-center gap-1 font-semibold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                                                <i data-lucide="clock" class="w-3 h-3"></i> Próximo: ${formattedNextDate}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                    ${client.notes ? `<p class="text-slate-700 leading-relaxed">${escapeHtml(client.notes)}</p>` : ''}
+                                </div>
+                            ` : (client.notes ? `
+                                <p class="text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 mt-2">
+                                    <span class="font-semibold text-slate-600">Obs:</span> ${escapeHtml(client.notes)}
+                                </p>
+                            ` : '')}
+                        </div>
+
+                        <!-- Botões de Ação -->
+                        <div class="flex sm:flex-col items-center sm:items-end justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                            ${client.status === 'Não' ? `
+                                <button onclick="markAsRegistered('${client.id}')"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition shadow-xs"
+                                    title="Converter para Cadastrado (Sim)">
+                                    <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                    Concluir Cadastro
+                                </button>
+                                <button onclick="openFollowupModal('${client.id}')"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold rounded-lg transition"
+                                    title="Registrar contato ou reagendar">
+                                    <i data-lucide="calendar-plus" class="w-3.5 h-3.5"></i>
+                                    Reagendar
+                                </button>
+                            ` : ''}
+
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="editClient('${client.id}')" class="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Editar">
+                                    <i data-lucide="pencil" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="openDeleteModal('${client.id}')" class="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Excluir">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // --- EXPORTAÇÃO E IMPORTAÇÃO ---
+        function exportToCSV() {
+            if (clients.length === 0) {
+                showToast('Não há clientes para exportar.', 'error');
+                return;
+            }
+
+            const headers = ['Nome', 'Telefone', 'Email', 'Tipo de Cadastro', 'Cadastrado', 'Continuar Contactando', 'Canal', 'Proximo Contato', 'Observacoes', 'Data Criacao'];
+            const rows = clients.map(c => [
+                `"${(c.name || '').replace(/"/g, '""')}"`,
+                `"${(c.phone || '').replace(/"/g, '""')}"`,
+                `"${(c.email || '').replace(/"/g, '""')}"`,
+                `"${(c.type || '').replace(/"/g, '""')}"`,
+                `"${c.status}"`,
+                `"${c.status === 'Não' ? (c.continueContact ? 'Sim' : 'Não') : 'N/A'}"`,
+                `"${(c.contactChannel || '').replace(/"/g, '""')}"`,
+                `"${c.nextContactDate ? new Date(c.nextContactDate).toLocaleString('pt-BR') : ''}"`,
+                `"${(c.notes || '').replace(/"/g, '""')}"`,
+                `"${new Date(c.createdAt).toLocaleString('pt-BR')}"`
+            ]);
+
+            // BOM UTF-8 (\uFEFF) garante acentuação correta ao abrir direto no Excel
+            const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            downloadBlob(blob, `clientes_crm_${new Date().toISOString().slice(0,10)}.csv`);
+            showToast('Planilha CSV exportada!', 'success');
+        }
+
+        function exportToJSON() {
+            if (clients.length === 0) {
+                showToast('Não há clientes para exportar.', 'error');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(clients, null, 2)], { type: 'application/json' });
+            downloadBlob(blob, `backup_crm_${new Date().toISOString().slice(0,10)}.json`);
+            showToast('Backup JSON baixado!', 'success');
+        }
+
+        function importFromJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        clients = imported;
+                        saveClientsToStorage();
+                        renderClients();
+                        showToast(`${imported.length} clientes importados com sucesso!`, 'success');
+                    } else {
+                        showToast('Arquivo JSON inválido.', 'error');
+                    }
+                } catch (err) {
+                    showToast('Erro ao ler o arquivo de backup.', 'error');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- UTILITÁRIOS ---
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: 'bg-slate-900 text-white border-emerald-500',
+                error: 'bg-rose-600 text-white border-rose-800',
+                info: 'bg-slate-800 text-white border-amber-400'
+            };
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border-l-4 text-xs font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.success}`;
+            toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
