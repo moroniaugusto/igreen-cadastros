@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM Clientes - Sincronizado</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+
+  <header class="bg-slate-900 text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight">Controle de Clientes & Leads</h1>
+        <p class="text-xs text-slate-400">Green • Telecom • Solar • Placas • Seguros • Mob</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="statusSync" class="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          Modo Local (Offline)
+        </span>
+        <button onclick="exportarCSV()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition">
+          Exportar CSV
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Formulário de Cadastro -->
+    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit">
+      <h2 class="text-lg font-semibold mb-4 text-slate-800 border-b pb-2" id="formTitulo">Novo Cadastro</h2>
+      <form id="clienteForm" class="space-y-4">
+        <input type="hidden" id="clienteId" />
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
+          <input type="text" id="nome" required placeholder="Nome completo"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Telefone *</label>
+          <input type="tel" id="telefone" required placeholder="(61) 99999-9999" maxlength="15"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+          <input type="email" id="email" placeholder="cliente@email.com"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de Cadastro *</label>
+          <select id="tipo" required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="Green">Green</option>
+            <option value="Telecom">Telecom</option>
+            <option value="Solar">Solar</option>
+            <option value="Placas">Placas</option>
+            <option value="Seguros">Seguros</option>
+            <option value="Mob">Mob</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Situação: Cadastrado?</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="cursor-pointer">
+              <input type="radio" name="cadastrado" value="Sim" class="peer sr-only" checked onchange="toggleContato()" />
+              <div class="text-center py-2 px-3 rounded-lg border border-slate-300 text-sm font-medium peer-checked:bg-emerald-600 peer-checked:text-white peer-checked:border-emerald-600 transition">
+                Sim
+              </div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="cadastrado" value="Não" class="peer sr-only" onchange="toggleContato()" />
+              <div class="text-center py-2 px-3 rounded-lg border border-slate-300 text-sm font-medium peer-checked:bg-amber-600 peer-checked:text-white peer-checked:border-amber-600 transition">
+                Não
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Seção Condicional: Continuar Contactando -->
+        <div id="boxContinuarContato" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" id="continuarContactando" checked class="w-4 h-4 text-amber-600 rounded" />
+            <label for="continuarContactando" class="text-sm font-semibold text-amber-900">
+              Continuar contactando este cliente
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-amber-800 mb-1">Próximo Contato / Retorno</label>
+            <input type="datetime-local" id="dataRetorno"
+              class="w-full rounded border border-amber-300 px-2.5 py-1.5 text-xs bg-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-amber-800 mb-1">Observações do Atendimento</label>
+            <textarea id="observacao" rows="2" placeholder="Ex: Retornar sexta-feira após as 14h..."
+              class="w-full rounded border border-amber-300 px-2.5 py-1.5 text-xs bg-white"></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+            Salvar Registro
+          </button>
+          <button type="button" id="btnCancelar" onclick="resetForm()" class="hidden bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2 px-3 rounded-lg text-sm transition">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Listagem e Filtros -->
+    <section class="lg:col-span-2 space-y-4">
+      
+      <!-- Resumo -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs text-slate-500">Total</p>
+          <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs text-emerald-600 font-medium">Cadastrados (Sim)</p>
+          <p id="statSim" class="text-2xl font-bold text-emerald-600">0</p>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs text-amber-600 font-medium">Em Contato (Não)</p>
+          <p id="statNao" class="text-2xl font-bold text-amber-600">0</p>
+        </div>
+      </div>
+
+      <!-- Barra de Pesquisa e Filtros -->
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3">
+        <input type="text" id="busca" oninput="renderizar()" placeholder="Buscar por nome, telefone ou e-mail..."
+          class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select id="filtroTipo" onchange="renderizar()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+          <option value="TODOS">Todos os Tipos</option>
+          <option value="Green">Green</option>
+          <option value="Telecom">Telecom</option>
+          <option value="Solar">Solar</option>
+          <option value="Placas">Placas</option>
+          <option value="Seguros">Seguros</option>
+          <option value="Mob">Mob</option>
+        </select>
+        <select id="filtroSituacao" onchange="renderizar()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
+          <option value="TODOS">Todas Situações</option>
+          <option value="Sim">Cadastrado: Sim</option>
+          <option value="Não">Cadastrado: Não</option>
+          <option value="CONTACTAR">Continuar Contactando</option>
+        </select>
+      </div>
+
+      <!-- Lista de Cards -->
+      <div id="listaClientes" class="space-y-3"></div>
+    </section>
+
+  </main>
+
+  <!-- Firebase SDK para Sincronização em Tempo Real -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // =========================================================================
+    // CONFIGURAÇÃO DE SINCRONIZAÇÃO EM NUVEM (FIREBASE FIRESTORE)
+    // Cole suas credenciais do Firebase abaixo para sincronizar entre dispositivos
+    // =========================================================================
+    const firebaseConfig = {
+      apiKey: "COLE_SUA_API_KEY_AQUI",
+      authDomain: "SEU_PROJETO.firebaseapp.com",
+      projectId: "SEU_PROJECT_ID",
+      storageBucket: "SEU_PROJETO.appspot.com",
+      messagingSenderId: "SEU_SENDER_ID",
+      appId: "SEU_APP_ID"
+    };
+
+    const usandoNuvem = firebaseConfig.apiKey !== "COLE_SUA_API_KEY_AQUI";
+    let db = null;
+    let clientes = [];
+
+    const statusEl = document.getElementById("statusSync");
+
+    if (usandoNuvem) {
+      const app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      statusEl.textContent = "Sincronizado em Tempo Real";
+      statusEl.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald
